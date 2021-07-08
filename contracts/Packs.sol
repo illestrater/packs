@@ -79,7 +79,7 @@ contract Relics is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
 
   /** 
    * Map token order w/ URI upon mints
-   * Sample token ID (edition #77) with collection of 12 different assets: 1200077
+   * Sample token ID (edition #77) with collection of 12 different assets: 001200077
    */
 
    // 10
