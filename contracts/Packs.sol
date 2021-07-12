@@ -8,24 +8,34 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./ERC721PresetMinterPauserAutoId.sol";
 import "./IPacks.sol";
 
-contract Relics is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
+contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
   using SafeMath for uint256;
   using Counters for Counters.Counter;
 
   address payable public daoAddress;
   bool public daoInitialized;
 
+  string private _name;
+  string private _symbol;
+  string private _baseURI;
   bytes32[] public titles;
   bytes32[] public descriptions;
   bytes32[] public assets;
   uint256[] public counts;
-  uint256[] public soldCounts;
+  uint256[] public tokenIDs;
+  uint256[] public shuffleIDs;
+  uint256 public totalNFTCount;
   uint256 public tokenPrice;
   uint256 public bulkBuyLimit;
   uint256 public maxSupply;
   bool public editioned;
   uint256 public saleStartTime;
   string public licenseURI;
+
+  mapping (uint256 => address) private _owners;
+  mapping (address => uint256) private _balances;
+  mapping (uint256 => address) private _tokenApprovals;
+  mapping (address => mapping (address => bool)) private _operatorApprovals;
 
   mapping (uint256 => uint256) internal _minted;
   uint256 internal _mintPointer = 0;
@@ -40,31 +50,28 @@ contract Relics is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
     bytes32[] memory _assets,
     uint256[] memory _counts,
     bool _editioned,
+    uint256 _tokenPrice,
     uint256 _bulkBuyLimit,
     uint256 _saleStartTime,
     string memory _licenseURI
   ) ERC721PresetMinterPauserAutoId(name, symbol, baseURI) public {
     require(_titles.length == _descriptions.length && _titles.length == _assets.length && _titles.length == _counts.length);
     daoAddress = _daoAddress;
+    _name = name;
+    _symbol = symbol;
+    _baseURI  = baseURI;
     daoInitialized = _daoAddress != address(0);
     titles = _titles;
     descriptions = _descriptions;
     assets = _assets;
     counts = _counts;
     editioned = _editioned;
+    tokenPrice = _tokenPrice;
     bulkBuyLimit = _bulkBuyLimit;
     saleStartTime = _saleStartTime;
     licenseURI = _licenseURI;
 
-    uint256 _count = 0;
-    uint256[] memory _soldCounts = uint256[](_counts.length);
-    for (uint i = 0; i < _counts.length; i++) {
-      _count = _count + _counts[i];
-      _soldCounts[i] = 0;
-    }
-
-    soldCounts = _soldCounts;
-    maxSupply = _count;
+    createTokenIDs();
   }
 
   modifier onlyDAO() {
@@ -73,26 +80,48 @@ contract Relics is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
   }
 
   function random() private view returns (uint) {
-    return uint(keccak256(abi.encodePacked(block.difficulty, block.timestamp, players)));
+    return uint(keccak256(abi.encodePacked(block.difficulty, block.timestamp, assets)));
     // random()%assets.length
   }
 
   /** 
    * Map token order w/ URI upon mints
-   * Sample token ID (edition #77) with collection of 12 different assets: 001200077
+   * Sample token ID (edition #77) with collection of 12 different assets: 1200077
    */
-
-   // 10
-   // 50
-   // 20
-  function mint() public override payable nonReentrant {
-    uint256 i = 0;
-
-    while (uint256 i = 0; i < _assets.length; i++) {
-
+  function createTokenIDs() private {
+    uint256 tokenCount = 0;
+    for (uint256 i = 0; i < assets.length; i++) {
+      tokenCount = tokenCount + counts[i];
     }
 
-    uint256 tokenId = _tokenIdTracker.current();
+    uint256[] memory ids = new uint256[](tokenCount);
+    uint256 count = 0;
+    for (uint256 i = 0; i < assets.length; i++) {
+      for (uint256 j = 0; j < counts[i]; j++) {
+        ids[count] = (i + 1) * 100000 + (j + 1);
+        count = count + 1;
+      }
+    }
+
+    shuffleIDs = ids;
+  }
+
+  function getTokens() public view returns (uint256[] memory) {
+    return shuffleIDs;
+  }
+
+  function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+    return bytes(_baseURI).length > 0
+        ? string(abi.encodePacked(_baseURI, tokenId))
+        : '';
+  }
+
+  // Define current owners of each ID (reference infinfts)
+  function mint() public override payable nonReentrant {
+    uint256 randomTokenID = random() % shuffleIDs.length;
+    uint256 tokenID = shuffleIDs[randomTokenID];
+    shuffleIDs[randomTokenID] = shuffleIDs[shuffleIDs.length - 1];
+    delete shuffleIDs[shuffleIDs.length - 1];
 
     if (daoInitialized) {
       (bool transferToDaoStatus, ) = daoAddress.call{value:tokenPrice}("");
@@ -105,7 +134,7 @@ contract Relics is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
       require(returnExcessStatus, "Failed to return excess.");
     }
 
-    _mint(_msgSender(), tokenId);
+    _mint(_msgSender(), tokenID);
   }
 
   function bulkBuy(uint256 amount) public override payable nonReentrant {
@@ -124,20 +153,7 @@ contract Relics is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
     }
 
     for (uint256 i = 0; i < amount; i++) {
-      _tokenIdTracker.increment();
-      uint256 tokenId = _tokenIdTracker.current();
-      _mint(_msgSender(), tokenId);
+      mint();
     }
-  }
-
-  function lastTokenId() public override view returns (uint256 tokenId) {
-    return _tokenIdTracker.current();
-  }
-
-  function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
-    string memory baseURI = _baseURI();
-    return bytes(baseURI).length > 0
-        ? string(abi.encodePacked(baseURI, tokenId.toString()))
-        : '';
   }
 }
