@@ -156,4 +156,8 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
       mint();
     }
   }
+
+  function mint(address to) public override(ERC721PresetMinterPauserAutoId) {
+    revert("Should not use this one");
+  }
 }
