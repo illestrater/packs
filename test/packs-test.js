@@ -26,7 +26,14 @@ describe("Greeter", function() {
   });
 
   it("should mint one token", async function() {
-    await packsInstance.mint({ value: tokenPrice });
+    await packsInstance.functions['mint()']({value: tokenPrice})
+    await packsInstance.functions['mint()']({value: tokenPrice})
+    await packsInstance.functions['mint()']({value: tokenPrice})
+    await packsInstance.functions['mint()']({value: tokenPrice})
+    await packsInstance.functions['mint()']({value: tokenPrice})
+    await packsInstance.functions['mint()']({value: tokenPrice})
+    await packsInstance.functions['mint()']({value: tokenPrice})
+    await packsInstance.functions['mint()']({value: tokenPrice})
 
     packsInstance.getTokens().then(e => {
       e.forEach(n => {

@@ -94,11 +94,12 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
       tokenCount = tokenCount + counts[i];
     }
 
-    uint256[] memory ids = new uint256[](tokenCount);
+    // uint256[] memory ids = new uint256[](tokenCount);
+    uint256[] storage ids;
     uint256 count = 0;
     for (uint256 i = 0; i < assets.length; i++) {
       for (uint256 j = 0; j < counts[i]; j++) {
-        ids[count] = (i + 1) * 100000 + (j + 1);
+        ids.push((i + 1) * 100000 + (j + 1));
         count = count + 1;
       }
     }
@@ -118,10 +119,10 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
 
   // Define current owners of each ID (reference infinfts)
   function mint() public override payable nonReentrant {
-    uint256 randomTokenID = random() % shuffleIDs.length;
+    uint256 randomTokenID = random() % (shuffleIDs.length - 1);
     uint256 tokenID = shuffleIDs[randomTokenID];
     shuffleIDs[randomTokenID] = shuffleIDs[shuffleIDs.length - 1];
-    delete shuffleIDs[shuffleIDs.length - 1];
+    shuffleIDs.pop();
 
     if (daoInitialized) {
       (bool transferToDaoStatus, ) = daoAddress.call{value:tokenPrice}("");
