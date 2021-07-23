@@ -5,5 +5,5 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 interface IPacks is IERC721 {
     function mint() external payable;
-    function bulkBuy(uint256 amount) external payable;
+    function bulkMint(uint256 amount) external payable;
 }
