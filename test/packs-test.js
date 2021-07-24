@@ -51,6 +51,8 @@ describe("Greeter", function() {
   });
 
   it("first token ", async function() {
+    await packsInstance.addVersion(1, 'fourrrrrrr');
+    await packsInstance.updateVersion(1, 4);
     const yo = await packsInstance.tokenURI(100008);
     console.log(base64toJSON(yo));
   });

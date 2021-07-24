@@ -24,5 +24,10 @@ module.exports = {
       runs: 200,
     },
   },
+  networks: {
+    hardhat: {
+      allowUnlimitedContractSize: true
+    },
+  }
 };
 

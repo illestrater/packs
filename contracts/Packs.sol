@@ -5,12 +5,13 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import 'base64-sol/base64.sol';
 import "./ERC721PresetMinterPauserAutoId.sol";
 import "./IPacks.sol";
 import "hardhat/console.sol";
 
-contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
+contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, Ownable {
   using SafeMath for uint256;
   using Counters for Counters.Counter;
 
@@ -26,6 +27,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
     string title;
     string description;
     uint256 count;
+    uint256 versionCount;
     uint256 currentVersion;
     string[] assets; // Each asset in array is a version
   }
@@ -87,6 +89,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
         title: _titles[i],
         description: _descriptions[i],
         count: _counts[i],
+        versionCount: count,
         currentVersion: 0,
         assets: _singleAssets
       });
@@ -139,36 +142,6 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
     return shuffleIDs;
   }
 
-  function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
-    string memory stringId = toString(tokenId);
-    uint256 edition = safeParseInt(substring(stringId, bytes(stringId).length - 5, bytes(stringId).length)) - 1;
-    uint256 collectibleId = (tokenId - edition) / 100000 - 1;
-    console.log(stringId, collectibleId, edition);
-
-    return
-      string(
-        abi.encodePacked(
-          'data:application/json;base64,',
-          Base64.encode(
-            bytes(
-              abi.encodePacked(
-                '{"name":"',
-                collectibles[collectibleId].title,
-                editioned ? ' #' : '',
-                editioned ? toString(edition) : '',
-                '", "description":"',
-                collectibles[collectibleId].description,
-                '", "image": "',
-                _baseURI,
-                collectibles[collectibleId].assets[collectibles[collectibleId].currentVersion],
-                '"}'
-              )
-            )
-          )
-        )
-      );
-  }
-
   // Define current owners of each ID (reference infinfts)
   function mint() public override payable {
     if (daoInitialized) {
@@ -215,6 +188,45 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
 
   function mint(address to) public override(ERC721PresetMinterPauserAutoId) {
     revert("Should not use this one");
+  }
+
+  // Index starts at version 1, collectible 1 (so shifts 1 for 0th index)
+  function updateVersion(uint256 collectibleNumber, uint256 versionNumber) public onlyOwner {
+    collectibles[collectibleNumber - 1].currentVersion = versionNumber - 1;
+  }
+
+  function addVersion(uint256 collectibleNumber, string memory asset) public onlyOwner {
+    collectibles[collectibleNumber - 1].assets[collectibles[collectibleNumber - 1].versionCount] = asset;
+    collectibles[collectibleNumber - 1].versionCount++;
+  }
+
+  function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+    string memory stringId = toString(tokenId);
+    uint256 edition = safeParseInt(substring(stringId, bytes(stringId).length - 5, bytes(stringId).length)) - 1;
+    uint256 collectibleId = (tokenId - edition) / 100000 - 1;
+
+    return
+      string(
+        abi.encodePacked(
+          'data:application/json;base64,',
+          Base64.encode(
+            bytes(
+              abi.encodePacked(
+                '{"name":"',
+                collectibles[collectibleId].title,
+                editioned ? ' #' : '',
+                editioned ? toString(edition) : '',
+                '", "description":"',
+                collectibles[collectibleId].description,
+                '", "image": "',
+                _baseURI,
+                collectibles[collectibleId].assets[collectibles[collectibleId].currentVersion],
+                '"}'
+              )
+            )
+          )
+        )
+      );
   }
 
   function toString(uint256 value) internal pure returns (string memory) {
