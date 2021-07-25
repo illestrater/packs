@@ -5,13 +5,12 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import 'base64-sol/base64.sol';
 import "./ERC721PresetMinterPauserAutoId.sol";
 import "./IPacks.sol";
 import "hardhat/console.sol";
 
-contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, Ownable {
+contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
   using SafeMath for uint256;
   using Counters for Counters.Counter;
 
@@ -37,6 +36,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, Ownab
   uint256[] public shuffleIDs;
 
   uint256 public collectibleCount;
+  uint256 public totalTokenCount;
   uint256 public tokenPrice;
   uint256 public bulkBuyLimit;
   uint256 public saleStartTime;
@@ -44,7 +44,6 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, Ownab
   string public licenseURI;
 
   constructor(
-    address payable _daoAddress,
     string memory name,
     string memory symbol,
     string memory baseURI,
@@ -57,13 +56,15 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, Ownab
     string memory _licenseURI
   ) ERC721PresetMinterPauserAutoId(name, symbol, baseURI) public {
     require(_titles.length == _descriptions.length && _titles.length == _assets.length && _titles.length == _counts.length);
-    daoAddress = _daoAddress;
+    daoAddress = msg.sender;
+    daoInitialized = false;
+
     _name = name;
     _symbol = symbol;
     _baseURI  = baseURI;
-    daoInitialized = _daoAddress != address(0);
 
     uint256 _collectibleCount = 0;
+    uint256 _totalTokenCount = 0;
     for (uint256 i = 0; i < _titles.length; i++) {
       string[] memory _singleAssets = new string[](bytes(_assets[i]).length);
       uint256 substringPointer = 0;
@@ -95,9 +96,11 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, Ownab
       });
 
       _collectibleCount++;
+      _totalTokenCount += _counts[i];
     }
 
     collectibleCount = _collectibleCount;
+    totalTokenCount = _totalTokenCount;
     editioned = _editioned;
     tokenPrice = _initParams[0];
     bulkBuyLimit = _initParams[1];
@@ -112,8 +115,13 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, Ownab
     _;
   }
 
+  function transferDAOownership(address payable _daoAddress) public onlyDAO {
+    daoAddress = daoAddress;
+    daoInitialized = true;
+  }
+
   function random() private view returns (uint) {
-    return uint(keccak256(abi.encodePacked(block.difficulty, block.timestamp, collectibleCount)));
+    return uint(keccak256(abi.encodePacked(block.difficulty, block.timestamp, totalTokenCount)));
   }
 
   /** 
@@ -191,11 +199,11 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, Ownab
   }
 
   // Index starts at version 1, collectible 1 (so shifts 1 for 0th index)
-  function updateVersion(uint256 collectibleNumber, uint256 versionNumber) public onlyOwner {
+  function updateVersion(uint256 collectibleNumber, uint256 versionNumber) public onlyDAO {
     collectibles[collectibleNumber - 1].currentVersion = versionNumber - 1;
   }
 
-  function addVersion(uint256 collectibleNumber, string memory asset) public onlyOwner {
+  function addVersion(uint256 collectibleNumber, string memory asset) public onlyDAO {
     collectibles[collectibleNumber - 1].assets[collectibles[collectibleNumber - 1].versionCount] = asset;
     collectibles[collectibleNumber - 1].versionCount++;
   }

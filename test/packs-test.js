@@ -16,7 +16,7 @@ describe("Greeter", function() {
   before(async () => {
     const Packs = await ethers.getContractFactory("Packs");
     packsInstance = await Packs.deploy(
-      '0x0000000000000000000000000000000000000000', // '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+      // '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
       'Relics',
       'MONSTERCAT',
       'https://arweave.net/',
@@ -29,6 +29,10 @@ describe("Greeter", function() {
       'https://arweave.net/license'
     );
     await packsInstance.deployed();
+  });
+
+  it("should match the total token count", async function() {
+    expect((await packsInstance.totalTokenCount())).to.equal(totalTokenCount);
   });
 
   it("should mint one token", async function() {
