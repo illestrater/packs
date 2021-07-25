@@ -116,7 +116,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
   }
 
   function transferDAOownership(address payable _daoAddress) public onlyDAO {
-    daoAddress = daoAddress;
+    daoAddress = _daoAddress;
     daoInitialized = true;
   }
 
