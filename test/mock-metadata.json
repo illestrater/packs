@@ -1,0 +1,34 @@
+{
+  "data": [
+    [
+      ["ISRC", "US-S1Z-99-00001", "1"],
+      ["Genre","House", "0"],
+      ["Secondary Genre", "Trance", "0"],
+      ["BPM", "128", "0"],
+      ["Duration", "4:20", "0"],
+      ["Key", "C", "false"],
+      ["Version", "Original", "0"],
+      ["Language", "English", "0"],
+      ["Song Release Date", "April 4, 2021", "0"],
+      ["NFT Release Date", "March 14, 2021", "0"],
+      ["Label", "Shroomies", "0"],
+      ["Brand", "Circle, Square", "0"],
+      ["Season", "One", "0"]
+    ],
+    [
+      ["ISRC", "US-S1Z-99-00001", "1"],
+      ["Genre","House", "0"],
+      ["Secondary Genre", "Trance", "0"],
+      ["BPM", "128", "0"],
+      ["Duration", "4:20", "0"],
+      ["Key", "C", "false"],
+      ["Version", "Original", "0"],
+      ["Language", "English", "0"],
+      ["Song Release Date", "April 4, 2021", "0"],
+      ["NFT Release Date", "March 14, 2021", "0"],
+      ["Label", "Shroomies", "0"],
+      ["Brand", "Circle, Square", "0"],
+      ["Season", "One", "0"]
+    ]
+  ]
+}

@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { utils } = require('ethers')
+const mock = require('./mock-metadata.json');
 
 function base64toJSON(string) {
   return JSON.parse(Buffer.from(string.replace('data:application/json;base64,',''), 'base64').toString())
@@ -11,16 +12,8 @@ describe("Greeter", function() {
   const tokenCounts = [10, 50, 20];
   const tokenNames = ['First name', 'Name two', 'Thirds'];
   const descriptions = ['The first description', 'Second descript', 'Third yooooo'];
-  const metadata = [
-    [
-      ['test','val1', 'true'],
-      ['yoooo', 'val2', 'false']
-    ],
-    [
-      ['test2','val3', 'true'],
-      ['yoooo2', 'val4', 'false']
-    ],
-  ];
+  const metadata = mock.data;
+  console.log(metadata.length);
   
   let totalTokenCount = 0;
   tokenCounts.forEach(e => totalTokenCount += e);
@@ -40,10 +33,13 @@ describe("Greeter", function() {
       tokenCounts,
       true,
       [tokenPrice, 50, 1948372],
-      metadata,
       'https://arweave.net/license',
     );
     await packsInstance.deployed();
+  });
+
+  it("should initialize metadata", async function() {
+    (await packsInstance.initializeMetadata(metadata));
   });
 
   it("should match the total token count", async function() {
@@ -58,7 +54,7 @@ describe("Greeter", function() {
   it("should reject mints with insufficient funds", async function() {
     expect(packsInstance.functions['mint()']({value: tokenPrice.div(2) })).to.be.reverted;
     expect(packsInstance.bulkMint(50, {value: tokenPrice.mul(49) })).to.be.reverted;
-  })
+  });
 
   it("should bulk mint all tokens", async function() {
     expect(packsInstance.bulkMint(10000, {value: tokenPrice.mul(10000) })).to.be.reverted;
@@ -79,16 +75,17 @@ describe("Greeter", function() {
     expect(tokenJSON.name).to.equal(`${ tokenNames[0] } #8`);
     expect(tokenJSON.description).to.equal(descriptions[0]);
     expect(tokenJSON.image).to.equal(`${ baseURI }one`);
-    expect(tokenJSON.attributes[0].trait_type).to.equal(`test`);
-    expect(tokenJSON.attributes[0].value).to.equal(`val1`);
+    expect(tokenJSON.attributes[0].trait_type).to.equal(metadata[0][0][0]);
+    expect(tokenJSON.attributes[0].value).to.equal(metadata[0][0][1]);
   });
 
   it ("should update metadata", async function() {
-    await packsInstance.updateMetadata(1, 0, 'new new')
+    const newMetadata = 'new new';
+    await packsInstance.updateMetadata(1, 0, newMetadata);
     const yo = await packsInstance.tokenURI(100008);
     const tokenJSON = base64toJSON(yo);
-    expect(tokenJSON.attributes[0].trait_type).to.equal(`test`);
-    expect(tokenJSON.attributes[0].value).to.equal(`new new`);
+    expect(tokenJSON.attributes[0].trait_type).to.equal(metadata[0][0][0]);
+    expect(tokenJSON.attributes[0].value).to.equal(newMetadata);
   });
 
   it ("should not be able to update permanent metadata", async function() {

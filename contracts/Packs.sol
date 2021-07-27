@@ -22,6 +22,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
   string private _baseURI;
 
   mapping (uint256 => string) versionedAssets;
+  /* TODO: modifiable */
   struct SingleCollectible {
     string title; // Collectible name
     string description; // Collectible description
@@ -62,7 +63,6 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
     uint256[] memory _counts,
     bool _editioned,
     uint256[] memory _initParams,
-    string[][][] memory _metadataValues,
     string memory _licenseURI
   ) ERC721PresetMinterPauserAutoId(name, symbol, baseURI) public {
     require(_titles.length == _descriptions.length && _titles.length == _assets.length && _titles.length == _counts.length);
@@ -105,24 +105,6 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
 
       _collectibleCount++;
       _totalTokenCount += _counts[i];
-    }
-
-    for (uint256 i = 0; i < _metadataValues.length; i++) {
-      string[] memory propertyNames = new string[](_metadataValues[i].length);
-      string[] memory propertyValues = new string[](_metadataValues[i].length);
-      bool[] memory modifiables= new bool[](_metadataValues[i].length);
-      for (uint256 j = 0; j < _metadataValues[i].length; j++) {
-        propertyNames[j] = _metadataValues[i][j][0];
-        propertyValues[j] = _metadataValues[i][j][1];
-        modifiables[j] = (keccak256(abi.encodePacked((_metadataValues[i][j][2]))) == keccak256(abi.encodePacked(('true'))));
-      }
-
-      basicMetadata[i] = BasicMetadata({
-        name: propertyNames,
-        value: propertyValues,
-        modifiable: modifiables,
-        propertyCount: _metadataValues[i].length
-      });
     }
 
     collectibleCount = _collectibleCount;
@@ -218,6 +200,26 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
       shuffleIDs[randomTokenID] = shuffleIDs[shuffleIDs.length - 1];
       shuffleIDs.pop();
       _mint(_msgSender(), tokenID);
+    }
+  }
+
+  function initializeMetadata(string[][][] memory _metadataValues) public onlyDAO {
+    for (uint256 i = 0; i < _metadataValues.length; i++) {
+      string[] memory propertyNames = new string[](_metadataValues[i].length);
+      string[] memory propertyValues = new string[](_metadataValues[i].length);
+      bool[] memory modifiables= new bool[](_metadataValues[i].length);
+      for (uint256 j = 0; j < _metadataValues[i].length; j++) {
+        propertyNames[j] = _metadataValues[i][j][0];
+        propertyValues[j] = _metadataValues[i][j][1];
+        modifiables[j] = (keccak256(abi.encodePacked((_metadataValues[i][j][2]))) == keccak256(abi.encodePacked(('1')))); // 1 is modifiable, 0 is permanent
+      }
+
+      basicMetadata[i] = BasicMetadata({
+        name: propertyNames,
+        value: propertyValues,
+        modifiable: modifiables,
+        propertyCount: _metadataValues[i].length
+      });
     }
   }
 
