@@ -1,4 +1,8 @@
 // SPDX-License-Identifier: MIT
+// Written by Tim Kang <> illestrater
+// Thought innovation by Monstercat
+// Product by universe.xyz
+
 pragma solidity >=0.6.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
@@ -22,7 +26,6 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
   string private _symbol; // Contract symbol
   string private _baseURI; // Token ID base URL (recommended as of 7/27/2021: https://arweave.net/)
 
-  /* TODO: modifiable */
   struct SingleCollectible {
     string title; // Collectible name
     string description; // Collectible description
@@ -51,8 +54,8 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
   uint256 public tokenPrice;
   uint256 public bulkBuyLimit;
   uint256 public saleStartTime;
-  bool public editioned;
-  uint256 public licenseVersion;
+  bool public editioned; // Display edition # in token name
+  uint256 public licenseVersion; // Tracker of latest license
 
   uint256[] public shuffleIDs;
 
@@ -95,6 +98,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
     return uint(keccak256(abi.encodePacked(block.difficulty, block.timestamp, totalTokenCount)));
   }
 
+  // Add single collectible asset with main info and metadata properties
   function addCollectible(string[] memory _coreData, string[] memory _assets, string[] memory _secondaryAssets, string[][] memory _metadataValues) public onlyDAO {
     uint256 editions = safeParseInt(_coreData[2]);
     collectibles[collectibleCount] = SingleCollectible({
@@ -151,7 +155,6 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
     return shuffleIDs;
   }
 
-  // Define current owners of each ID (reference infinfts)
   function mint() public override payable nonReentrant {
     if (daoInitialized) {
       (bool transferToDaoStatus, ) = daoAddress.call{value:tokenPrice}("");
@@ -195,22 +198,24 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
     }
   }
 
+  // Modify property field only if marked as updateable
   function updateMetadata(uint256 collectibleId, uint256 propertyIndex, string memory value) public onlyDAO {
     require(metadata[collectibleId - 1].modifiable[propertyIndex], 'Metadata field not updateable');
     metadata[collectibleId - 1].value[propertyIndex] = value;
   }
 
-  // Index starts at version 1, collectible 1 (so shifts 1 for 0th index)
-  function updateVersion(uint256 collectibleNumber, uint256 versionNumber) public onlyDAO {
-    collectibles[collectibleNumber - 1].currentVersion = versionNumber - 1;
-  }
-
+  // Add new asset, does not automatically increase current version
   function addVersion(uint256 collectibleNumber, string memory asset) public onlyDAO {
     collectibles[collectibleNumber - 1].assets[collectibles[collectibleNumber - 1].totalVersionCount - 1] = asset;
     collectibles[collectibleNumber - 1].totalVersionCount++;
   }
 
-  // Index starts at version 1, collectible 1 (so shifts 1 for 0th index)
+  // Set version number, index starts at version 1, collectible 1 (so shifts 1 for 0th index)
+  function updateVersion(uint256 collectibleNumber, uint256 versionNumber) public onlyDAO {
+    collectibles[collectibleNumber - 1].currentVersion = versionNumber - 1;
+  }
+
+  // Secondary asset versioning
   function updateSecondaryVersion(uint256 collectibleNumber, uint256 versionNumber) public onlyDAO {
     collectibles[collectibleNumber - 1].secondaryCurrentVersion = versionNumber - 1;
   }
@@ -220,19 +225,23 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
     collectibles[collectibleNumber - 1].secondaryTotalVersionCount++;
   }
 
+  // Adds new license and updates version to latest
   function addNewLicense(string memory _license) public onlyDAO {
     licenseURI[licenseVersion] = _license;
     licenseVersion++;
   }
 
+  // Returns license URI
   function getLicense() public view returns (string memory) {
     return licenseURI[licenseVersion - 1];
   }
 
+  // Returns license version count
   function getLicenseVersion(uint256 versionNumber) public view returns (string memory) {
     return licenseURI[versionNumber - 1];
   }
 
+  // Dynamic base64 encoded metadata generation using on-chain metadata and edition numbers
   function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
     string memory stringId = toString(tokenId);
     uint256 edition = safeParseInt(substring(stringId, bytes(stringId).length - 5, bytes(stringId).length)) - 1;
@@ -281,6 +290,9 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
     return encoded;
   }
 
+  /* HELPER FUNCTIONS
+   * Functions from https://github.com/provable-things/ethereum-api/blob/master/provableAPI_0.6.sol
+   */
   function toString(uint256 value) internal pure returns (string memory) {
     if (value == 0) {
         return "0";
@@ -301,7 +313,6 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
     return string(buffer);
   }
 
-  // Functions from https://github.com/provable-things/ethereum-api/blob/master/provableAPI_0.6.sol
   function safeParseInt(string memory _a) internal pure returns (uint _parsedInt) {
     return safeParseInt(_a, 0);
   }
