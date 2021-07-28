@@ -43,8 +43,8 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
   mapping (uint256 => BasicMetadata) basicMetadata;
   mapping (uint256 => string) public licenseURI;
 
-  uint256 public collectibleCount;
-  uint256 public totalTokenCount;
+  uint256 public collectibleCount = 0;
+  uint256 public totalTokenCount = 0;
   uint256 public tokenPrice;
   uint256 public bulkBuyLimit;
   uint256 public saleStartTime;
@@ -57,16 +57,10 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
     string memory name,
     string memory symbol,
     string memory baseURI,
-    string[] memory _titles,
-    string[] memory _descriptions,
-    string[] memory _assets,
-    uint256[] memory _counts,
     bool _editioned,
     uint256[] memory _initParams,
     string memory _licenseURI
   ) ERC721PresetMinterPauserAutoId(name, symbol, baseURI) public {
-    require(_titles.length == _descriptions.length && _titles.length == _assets.length && _titles.length == _counts.length);
-
     daoAddress = msg.sender;
     daoInitialized = false;
 
@@ -74,49 +68,12 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
     _symbol = symbol;
     _baseURI  = baseURI;
 
-    uint256 _collectibleCount = 0;
-    uint256 _totalTokenCount = 0;
-    for (uint256 i = 0; i < _titles.length; i++) {
-      string[] memory _singleAssets = new string[](bytes(_assets[i]).length);
-      uint256 substringPointer = 0;
-      uint256 count = 0;
-      for (uint256 j = 0; j < bytes(_assets[i]).length; j++) {
-        if (bytes(_assets[i])[j] == ",") {
-          _singleAssets[count] = substring(_assets[i], substringPointer, j);
-          substringPointer = j + 1;
-          count++;
-        }
-
-        if (j == bytes(_assets[i]).length - 1) {
-          _singleAssets[count] = substring(_assets[i], substringPointer, j + 1);
-          substringPointer = j;
-          count++;
-        }
-      }
-
-      collectibles[i] = SingleCollectible({
-        title: _titles[i],
-        description: _descriptions[i],
-        count: _counts[i],
-        totalVersionCount: count,
-        currentVersion: 0,
-        assets: _singleAssets
-      });
-
-      _collectibleCount++;
-      _totalTokenCount += _counts[i];
-    }
-
-    collectibleCount = _collectibleCount;
-    totalTokenCount = _totalTokenCount;
     editioned = _editioned;
     tokenPrice = _initParams[0];
     bulkBuyLimit = _initParams[1];
     saleStartTime = _initParams[2];
     licenseURI[0] = _licenseURI;
     licenseVersion = 1;
-
-    createTokenIDs();
   }
 
   modifier onlyDAO() {
@@ -133,26 +90,53 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
     return uint(keccak256(abi.encodePacked(block.difficulty, block.timestamp, totalTokenCount)));
   }
 
-  /** 
+  function addCollectible(string[] memory _coreData, string[] memory _assets, string[][] memory _metadataValues) public onlyDAO {
+    uint256 editions = safeParseInt(_coreData[2]);
+    collectibles[collectibleCount] = SingleCollectible({
+      title: _coreData[0],
+      description: _coreData[1],
+      count: safeParseInt(_coreData[2]),
+      assets: _assets,
+      currentVersion: 1,
+      totalVersionCount: _assets.length
+    });
+
+    string[] memory propertyNames = new string[](_metadataValues.length);
+    string[] memory propertyValues = new string[](_metadataValues.length);
+    bool[] memory modifiables= new bool[](_metadataValues.length);
+    for (uint256 i = 0; i < _metadataValues.length; i++) {
+      propertyNames[i] = _metadataValues[i][0];
+      propertyValues[i] = _metadataValues[i][1];
+      modifiables[i] = (keccak256(abi.encodePacked((_metadataValues[i][2]))) == keccak256(abi.encodePacked(('1')))); // 1 is modifiable, 0 is permanent
+    }
+
+    basicMetadata[collectibleCount] = BasicMetadata({
+      name: propertyNames,
+      value: propertyValues,
+      modifiable: modifiables,
+      propertyCount: _metadataValues.length
+    });
+
+    createTokenIDs(collectibleCount, editions);
+
+    collectibleCount++;
+    totalTokenCount += editions;
+  }
+
+  function bulkAddCollectible(string[][] memory _coreData, string[][] memory _assets, string[][][] memory _metadataValues) public onlyDAO {
+    for (uint256 i = 0; i < _coreData.length; i++) {
+      addCollectible(_coreData[i], _assets[i], _metadataValues[i]);
+    }
+  }
+
+  /**
    * Map token order w/ URI upon mints
    * Sample token ID (edition #77) with collection of 12 different assets: 1200077
    */
-  function createTokenIDs() private {
-    uint256 tokenCount = 0;
-    for (uint256 i = 0; i < collectibleCount; i++) {
-      tokenCount = tokenCount + collectibles[i].count;
+  function createTokenIDs(uint256 collectibleCount, uint256 editions) private {
+    for (uint256 i = 0; i < editions; i++) {
+      shuffleIDs.push((collectibleCount + 1) * 100000 + (i + 1));
     }
-
-    uint256[] memory ids = new uint256[](tokenCount);
-    uint256 count = 0;
-    for (uint256 i = 0; i < collectibleCount; i++) {
-      for (uint256 j = 0; j < collectibles[i].count; j++) {
-        ids[count] = (i + 1) * 100000 + (j + 1);
-        count++;
-      }
-    }
-
-    shuffleIDs = ids;
   }
 
   function getTokens() public view returns (uint256[] memory) {
@@ -203,26 +187,6 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
     }
   }
 
-  function initializeMetadata(string[][][] memory _metadataValues) public onlyDAO {
-    for (uint256 i = 0; i < _metadataValues.length; i++) {
-      string[] memory propertyNames = new string[](_metadataValues[i].length);
-      string[] memory propertyValues = new string[](_metadataValues[i].length);
-      bool[] memory modifiables= new bool[](_metadataValues[i].length);
-      for (uint256 j = 0; j < _metadataValues[i].length; j++) {
-        propertyNames[j] = _metadataValues[i][j][0];
-        propertyValues[j] = _metadataValues[i][j][1];
-        modifiables[j] = (keccak256(abi.encodePacked((_metadataValues[i][j][2]))) == keccak256(abi.encodePacked(('1')))); // 1 is modifiable, 0 is permanent
-      }
-
-      basicMetadata[i] = BasicMetadata({
-        name: propertyNames,
-        value: propertyValues,
-        modifiable: modifiables,
-        propertyCount: _metadataValues[i].length
-      });
-    }
-  }
-
   function updateMetadata(uint256 collectibleId, uint256 propertyIndex, string memory value) public onlyDAO {
     require(basicMetadata[collectibleId - 1].modifiable[propertyIndex], 'Metadata field not updateable');
     basicMetadata[collectibleId - 1].value[propertyIndex] = value;
@@ -234,7 +198,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
   }
 
   function addVersion(uint256 collectibleNumber, string memory asset) public onlyDAO {
-    collectibles[collectibleNumber - 1].assets[collectibles[collectibleNumber - 1].totalVersionCount] = asset;
+    collectibles[collectibleNumber - 1].assets[collectibles[collectibleNumber - 1].totalVersionCount - 1] = asset;
     collectibles[collectibleNumber - 1].totalVersionCount++;
   }
 
@@ -283,7 +247,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
                 collectibles[collectibleId].description,
                 '", "image": "',
                 _baseURI,
-                collectibles[collectibleId].assets[collectibles[collectibleId].currentVersion],
+                collectibles[collectibleId].assets[collectibles[collectibleId].currentVersion - 1],
                 '", "attributes": [',
                 metadata,
                 '] }'

@@ -10,10 +10,7 @@ describe("Greeter", function() {
   const baseURI = 'https://arweave.net/';
   const tokenPrice = ethers.utils.parseEther("0.0777");
   const tokenCounts = [10, 50, 20];
-  const tokenNames = ['First name', 'Name two', 'Thirds'];
-  const descriptions = ['The first description', 'Second descript', 'Third yooooo'];
   const metadata = mock.data;
-  console.log(metadata.length);
   
   let totalTokenCount = 0;
   tokenCounts.forEach(e => totalTokenCount += e);
@@ -27,10 +24,6 @@ describe("Greeter", function() {
       'Relics',
       'MONSTERCAT',
       baseURI,
-      tokenNames,
-      descriptions,
-      ['one,two,three','ayyyooo,twooooo', 'hello'],
-      tokenCounts,
       true,
       [tokenPrice, 50, 1948372],
       'https://arweave.net/license',
@@ -38,8 +31,15 @@ describe("Greeter", function() {
     await packsInstance.deployed();
   });
 
-  it("should initialize metadata", async function() {
-    (await packsInstance.initializeMetadata(metadata));
+  it("should create collectible", async function() {
+    await packsInstance.addCollectible(metadata[0].coreData, metadata[0].assets, metadata[0].metaData);
+  });
+
+  it("should bulk add collectible", async function() {
+    const coreData = [metadata[1].coreData, metadata[2].coreData]
+    const assets = [metadata[1].assets, metadata[2].assets]
+    const metaData = [metadata[1].metaData, metadata[2].metaData]
+    await packsInstance.bulkAddCollectible(coreData, assets, metaData);
   });
 
   it("should match the total token count", async function() {
@@ -72,11 +72,11 @@ describe("Greeter", function() {
   it("metadata should match and be updated", async function() {
     const yo = await packsInstance.tokenURI(100008);
     const tokenJSON = base64toJSON(yo);
-    expect(tokenJSON.name).to.equal(`${ tokenNames[0] } #8`);
-    expect(tokenJSON.description).to.equal(descriptions[0]);
+    expect(tokenJSON.name).to.equal(`${ metadata[0].coreData[0] } #8`);
+    expect(tokenJSON.description).to.equal(metadata[0].coreData[1]);
     expect(tokenJSON.image).to.equal(`${ baseURI }one`);
-    expect(tokenJSON.attributes[0].trait_type).to.equal(metadata[0][0][0]);
-    expect(tokenJSON.attributes[0].value).to.equal(metadata[0][0][1]);
+    expect(tokenJSON.attributes[0].trait_type).to.equal(metadata[0].metaData[0][0]);
+    expect(tokenJSON.attributes[0].value).to.equal(metadata[0].metaData[0][1]);
   });
 
   it ("should update metadata", async function() {
@@ -84,7 +84,7 @@ describe("Greeter", function() {
     await packsInstance.updateMetadata(1, 0, newMetadata);
     const yo = await packsInstance.tokenURI(100008);
     const tokenJSON = base64toJSON(yo);
-    expect(tokenJSON.attributes[0].trait_type).to.equal(metadata[0][0][0]);
+    expect(tokenJSON.attributes[0].trait_type).to.equal(metadata[0].metaData[0][0]);
     expect(tokenJSON.attributes[0].value).to.equal(newMetadata);
   });
 
