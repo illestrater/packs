@@ -3,10 +3,11 @@
     {
       "coreData": [
         "First collectible name",
-        "The first collectible description",
+        "The first collectible description this will be along description",
         "10"
       ],
       "assets": ["one", "two", "three"],
+      "secondaryAssets": ["secondaryAsset"],
       "metaData": [
         ["ISRC", "US-S1Z-99-00001", "1"],
         ["Genre","House", "0"],
@@ -30,6 +31,7 @@
         "20"
       ],
       "assets": ["2one", "2two", "2three"],
+      "secondaryAssets": ["secondaryAsset2"],
       "metaData": [
         ["ISRC", "US-S1Z-99-00001", "1"],
         ["Genre","House", "0"],
@@ -53,6 +55,7 @@
         "50"
       ],
       "assets": ["3one", "3two", "3three"],
+      "secondaryAssets": ["secondaryAsset3", "secondaryAsset3Version2"],
       "metaData": [
         ["ISRC", "US-S1Z-99-00001", "1"],
         ["Genre","House", "0"],

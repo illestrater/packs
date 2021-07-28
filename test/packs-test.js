@@ -9,8 +9,10 @@ function base64toJSON(string) {
 describe("Greeter", function() {
   const baseURI = 'https://arweave.net/';
   const tokenPrice = ethers.utils.parseEther("0.0777");
-  const tokenCounts = [10, 50, 20];
+  const bulkBuyLimit = 100;
+  const saleStartTime = 1948372;
   const metadata = mock.data;
+  const tokenCounts = [Number(metadata[0].coreData[2]), Number(metadata[1].coreData[2]), Number(metadata[2].coreData[2])];
   
   let totalTokenCount = 0;
   tokenCounts.forEach(e => totalTokenCount += e);
@@ -25,21 +27,22 @@ describe("Greeter", function() {
       'MONSTERCAT',
       baseURI,
       true,
-      [tokenPrice, 50, 1948372],
+      [tokenPrice, bulkBuyLimit, saleStartTime],
       'https://arweave.net/license',
     );
     await packsInstance.deployed();
   });
 
   it("should create collectible", async function() {
-    await packsInstance.addCollectible(metadata[0].coreData, metadata[0].assets, metadata[0].metaData);
+    await packsInstance.addCollectible(metadata[0].coreData, metadata[0].assets, metadata[0].secondaryAssets, metadata[0].metaData);
   });
 
   it("should bulk add collectible", async function() {
-    const coreData = [metadata[1].coreData, metadata[2].coreData]
-    const assets = [metadata[1].assets, metadata[2].assets]
-    const metaData = [metadata[1].metaData, metadata[2].metaData]
-    await packsInstance.bulkAddCollectible(coreData, assets, metaData);
+    const coreData = [metadata[1].coreData, metadata[2].coreData];
+    const assets = [metadata[1].assets, metadata[2].assets];
+    const secondaryAssets = [metadata[1].secondaryAssets, metadata[2].secondaryAssets];
+    const metaData = [metadata[1].metaData, metadata[2].metaData];
+    await packsInstance.bulkAddCollectible(coreData, assets, secondaryAssets, metaData);
   });
 
   it("should match the total token count", async function() {
@@ -57,12 +60,13 @@ describe("Greeter", function() {
   });
 
   it("should bulk mint all tokens", async function() {
+    const bulkCount = Number(metadata[2].coreData[2]);
     expect(packsInstance.bulkMint(10000, {value: tokenPrice.mul(10000) })).to.be.reverted;
 
-    await packsInstance.bulkMint(50, {value: tokenPrice.mul(50) });
-    expect((await packsInstance.getTokens()).length).to.equal(totalTokenCount - 1 - 50);
+    await packsInstance.bulkMint(bulkCount, {value: tokenPrice.mul(bulkCount) });
+    expect((await packsInstance.getTokens()).length).to.equal(totalTokenCount - 1 - bulkCount);
 
-    await packsInstance.bulkMint(totalTokenCount - 1 - 50, {value: tokenPrice.mul(totalTokenCount - 1 - 50) });
+    await packsInstance.bulkMint(totalTokenCount - 1 - bulkCount, {value: tokenPrice.mul(totalTokenCount - 1 - bulkCount) });
     expect((await packsInstance.getTokens()).length).to.equal(0);
 
     const [owner] = await ethers.getSigners();
@@ -82,21 +86,27 @@ describe("Greeter", function() {
   it ("should update metadata", async function() {
     const newMetadata = 'new new';
     await packsInstance.updateMetadata(1, 0, newMetadata);
-    const yo = await packsInstance.tokenURI(100008);
-    const tokenJSON = base64toJSON(yo);
+    const tokenJSON = base64toJSON(await packsInstance.tokenURI(100008));
     expect(tokenJSON.attributes[0].trait_type).to.equal(metadata[0].metaData[0][0]);
     expect(tokenJSON.attributes[0].value).to.equal(newMetadata);
   });
 
   it ("should not be able to update permanent metadata", async function() {
     expect(packsInstance.updateMetadata(1, 1, 'should not update')).to.be.reverted;
-  })
+  });
 
   it("should update image asset and version", async function() {
     await packsInstance.addVersion(1, 'fourrrrrrr');
     await packsInstance.updateVersion(1, 4);
     const tokenJSON = base64toJSON(await packsInstance.tokenURI(100008));
     expect(tokenJSON.image).to.equal(`${ baseURI }fourrrrrrr`);
+  });
+
+  it("should update secondary asset and version", async function() {
+    await packsInstance.addSecondaryVersion(3, 'secondaryAsset3Version3');
+    await packsInstance.updateSecondaryVersion(3, 3);
+    const tokenJSON = base64toJSON(await packsInstance.tokenURI(300777));
+    expect(tokenJSON.secondaryAsset).to.equal(`${ baseURI }secondaryAsset3Version3`);
   });
 
   it("should add new license version", async function() {

@@ -8,43 +8,46 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import 'base64-sol/base64.sol';
 import "./ERC721PresetMinterPauserAutoId.sol";
 import "./IPacks.sol";
+import "./HasSecondarySaleFees.sol";
 import "hardhat/console.sol";
 
-contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
+contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSecondarySaleFees {
   using SafeMath for uint256;
   using Counters for Counters.Counter;
 
   address payable public daoAddress;
   bool public daoInitialized;
 
-  string private _name;
-  string private _symbol;
-  string private _baseURI;
+  string private _name; // Contract name
+  string private _symbol; // Contract symbol
+  string private _baseURI; // Token ID base URL (recommended as of 7/27/2021: https://arweave.net/)
 
-  mapping (uint256 => string) versionedAssets;
   /* TODO: modifiable */
   struct SingleCollectible {
     string title; // Collectible name
     string description; // Collectible description
     uint256 count; // Amount of editions per collectible
+    string[] assets; // Each asset in array is a version
     uint256 totalVersionCount; // Total number of existing states
     uint256 currentVersion; // Current existing state
-    string[] assets; // Each asset in array is a version
+    string[] secondaryAssets; // Each asset in array is a version
+    uint256 secondaryTotalVersionCount; // Total number of existing states
+    uint256 secondaryCurrentVersion; // Current existing state
   }
 
-  struct BasicMetadata {
+  struct Metadata {
     string[] name; // Trait or attribute property field name
     string[] value; // Trait or attribute property value
     bool[] modifiable; // Can owner modify the value of field
     uint256 propertyCount; // Tracker of total attributes
   }
 
-  mapping (uint256 => SingleCollectible) collectibles;
-  mapping (uint256 => BasicMetadata) basicMetadata;
-  mapping (uint256 => string) public licenseURI;
+  mapping (uint256 => SingleCollectible) collectibles; // Unique assets
+  mapping (uint256 => Metadata) metadata; // Trait & property attributes, indexes should be coupled with 'collectibles'
+  mapping (uint256 => string) public licenseURI; // URL to external license or file
 
-  uint256 public collectibleCount = 0;
-  uint256 public totalTokenCount = 0;
+  uint256 public collectibleCount = 0; // Total unique assets count
+  uint256 public totalTokenCount = 0; // Total NFT count to be minted
   uint256 public tokenPrice;
   uint256 public bulkBuyLimit;
   uint256 public saleStartTime;
@@ -61,6 +64,8 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
     uint256[] memory _initParams,
     string memory _licenseURI
   ) ERC721PresetMinterPauserAutoId(name, symbol, baseURI) public {
+    require(_initParams[1] <= 100, "There cannot be bulk mints above 100");
+
     daoAddress = msg.sender;
     daoInitialized = false;
 
@@ -90,7 +95,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
     return uint(keccak256(abi.encodePacked(block.difficulty, block.timestamp, totalTokenCount)));
   }
 
-  function addCollectible(string[] memory _coreData, string[] memory _assets, string[][] memory _metadataValues) public onlyDAO {
+  function addCollectible(string[] memory _coreData, string[] memory _assets, string[] memory _secondaryAssets, string[][] memory _metadataValues) public onlyDAO {
     uint256 editions = safeParseInt(_coreData[2]);
     collectibles[collectibleCount] = SingleCollectible({
       title: _coreData[0],
@@ -98,7 +103,10 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
       count: safeParseInt(_coreData[2]),
       assets: _assets,
       currentVersion: 1,
-      totalVersionCount: _assets.length
+      totalVersionCount: _assets.length,
+      secondaryAssets: _secondaryAssets,
+      secondaryCurrentVersion: 1,
+      secondaryTotalVersionCount: _secondaryAssets.length
     });
 
     string[] memory propertyNames = new string[](_metadataValues.length);
@@ -110,7 +118,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
       modifiables[i] = (keccak256(abi.encodePacked((_metadataValues[i][2]))) == keccak256(abi.encodePacked(('1')))); // 1 is modifiable, 0 is permanent
     }
 
-    basicMetadata[collectibleCount] = BasicMetadata({
+    metadata[collectibleCount] = Metadata({
       name: propertyNames,
       value: propertyValues,
       modifiable: modifiables,
@@ -123,9 +131,9 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
     totalTokenCount += editions;
   }
 
-  function bulkAddCollectible(string[][] memory _coreData, string[][] memory _assets, string[][][] memory _metadataValues) public onlyDAO {
+  function bulkAddCollectible(string[][] memory _coreData, string[][] memory _assets, string[][] memory _secondaryAssets, string[][][] memory _metadataValues) public onlyDAO {
     for (uint256 i = 0; i < _coreData.length; i++) {
-      addCollectible(_coreData[i], _assets[i], _metadataValues[i]);
+      addCollectible(_coreData[i], _assets[i], _secondaryAssets[i], _metadataValues[i]);
     }
   }
 
@@ -188,8 +196,8 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
   }
 
   function updateMetadata(uint256 collectibleId, uint256 propertyIndex, string memory value) public onlyDAO {
-    require(basicMetadata[collectibleId - 1].modifiable[propertyIndex], 'Metadata field not updateable');
-    basicMetadata[collectibleId - 1].value[propertyIndex] = value;
+    require(metadata[collectibleId - 1].modifiable[propertyIndex], 'Metadata field not updateable');
+    metadata[collectibleId - 1].value[propertyIndex] = value;
   }
 
   // Index starts at version 1, collectible 1 (so shifts 1 for 0th index)
@@ -200,6 +208,16 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
   function addVersion(uint256 collectibleNumber, string memory asset) public onlyDAO {
     collectibles[collectibleNumber - 1].assets[collectibles[collectibleNumber - 1].totalVersionCount - 1] = asset;
     collectibles[collectibleNumber - 1].totalVersionCount++;
+  }
+
+  // Index starts at version 1, collectible 1 (so shifts 1 for 0th index)
+  function updateSecondaryVersion(uint256 collectibleNumber, uint256 versionNumber) public onlyDAO {
+    collectibles[collectibleNumber - 1].secondaryCurrentVersion = versionNumber - 1;
+  }
+
+  function addSecondaryVersion(uint256 collectibleNumber, string memory asset) public onlyDAO {
+    collectibles[collectibleNumber - 1].secondaryAssets[collectibles[collectibleNumber - 1].secondaryTotalVersionCount - 1] = asset;
+    collectibles[collectibleNumber - 1].secondaryTotalVersionCount++;
   }
 
   function addNewLicense(string memory _license) public onlyDAO {
@@ -219,17 +237,17 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
     string memory stringId = toString(tokenId);
     uint256 edition = safeParseInt(substring(stringId, bytes(stringId).length - 5, bytes(stringId).length)) - 1;
     uint256 collectibleId = (tokenId - edition) / 100000 - 1;
-    string memory metadata = '';
+    string memory encodedMetadata = '';
 
-    for (uint i = 0; i < basicMetadata[collectibleId].propertyCount; i++) {
-      metadata = string(abi.encodePacked(
-        metadata,
+    for (uint i = 0; i < metadata[collectibleId].propertyCount; i++) {
+      encodedMetadata = string(abi.encodePacked(
+        encodedMetadata,
         '{"trait_type":"',
-        basicMetadata[collectibleId].name[i],
+        metadata[collectibleId].name[i],
         '", "value":"',
-        basicMetadata[collectibleId].value[i],
+        metadata[collectibleId].value[i],
         '"}',
-        i == basicMetadata[collectibleId].propertyCount - 1 ? '' : ',')
+        i == metadata[collectibleId].propertyCount - 1 ? '' : ',')
       );
     }
 
@@ -248,8 +266,11 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard {
                 '", "image": "',
                 _baseURI,
                 collectibles[collectibleId].assets[collectibles[collectibleId].currentVersion - 1],
+                '", "secondaryAsset": "',
+                _baseURI,
+                collectibles[collectibleId].secondaryAssets[collectibles[collectibleId].secondaryCurrentVersion - 1],
                 '", "attributes": [',
-                metadata,
+                encodedMetadata,
                 '] }'
               )
             )
