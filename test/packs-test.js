@@ -9,20 +9,23 @@ function base64toJSON(string) {
 describe("Greeter", function() {
   const baseURI = 'https://arweave.net/';
   const tokenPrice = ethers.utils.parseEther("0.0777");
-  const bulkBuyLimit = 100;
+  const bulkBuyLimit = 30;
   const saleStartTime = 1948372;
   const metadata = mock.data;
   const tokenCounts = [Number(metadata[0].coreData[2]), Number(metadata[1].coreData[2]), Number(metadata[2].coreData[2])];
-  
+
   let totalTokenCount = 0;
   tokenCounts.forEach(e => totalTokenCount += e);
-  
+
   let packsInstance;
+  const randomWallet1 = ethers.Wallet.createRandom();
+  const randomWallet2 = ethers.Wallet.createRandom();
+  const feeSplit1 = 1000;
+  const feeSplit2 = 500;
 
   before(async () => {
     const Packs = await ethers.getContractFactory("Packs");
     packsInstance = await Packs.deploy(
-      // '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
       'Relics',
       'MONSTERCAT',
       baseURI,
@@ -34,7 +37,8 @@ describe("Greeter", function() {
   });
 
   it("should create collectible", async function() {
-    await packsInstance.addCollectible(metadata[0].coreData, metadata[0].assets, metadata[0].secondaryAssets, metadata[0].metaData);
+    const fees = [[randomWallet1.address, feeSplit1], [randomWallet2.address, feeSplit2]];
+    await packsInstance.addCollectible(metadata[0].coreData, metadata[0].assets, metadata[0].secondaryAssets, metadata[0].metaData, fees);
   });
 
   it("should bulk add collectible", async function() {
@@ -42,7 +46,11 @@ describe("Greeter", function() {
     const assets = [metadata[1].assets, metadata[2].assets];
     const secondaryAssets = [metadata[1].secondaryAssets, metadata[2].secondaryAssets];
     const metaData = [metadata[1].metaData, metadata[2].metaData];
-    await packsInstance.bulkAddCollectible(coreData, assets, secondaryAssets, metaData);
+    const fees = [
+      [[randomWallet2.address, feeSplit1], [randomWallet1.address, feeSplit2]],
+      [[randomWallet1.address, feeSplit2], [randomWallet2.address, feeSplit1]]
+    ];
+    await packsInstance.bulkAddCollectible(coreData, assets, secondaryAssets, metaData, fees);
   });
 
   it("should match the total token count", async function() {
@@ -122,6 +130,29 @@ describe("Greeter", function() {
     const license = await packsInstance.getLicenseVersion(1);
     expect(license).to.equal('https://arweave.net/license');
   })
+
+  it("should return correct secondary splits", async function() {
+    let recipients = await packsInstance.getFeeRecipients(100008);
+    let bps = await packsInstance.getFeeBps(100008);
+    expect(recipients[0]).to.equal(randomWallet1.address);
+    expect(recipients[1]).to.equal(randomWallet2.address);
+    expect(bps[0].toNumber()).to.equal(feeSplit1);
+    expect(bps[1].toNumber()).to.equal(feeSplit2);
+
+    recipients = await packsInstance.getFeeRecipients(200008);
+    bps = await packsInstance.getFeeBps(200008);
+    expect(recipients[0]).to.equal(randomWallet2.address);
+    expect(recipients[1]).to.equal(randomWallet1.address);
+    expect(bps[0].toNumber()).to.equal(feeSplit1);
+    expect(bps[1].toNumber()).to.equal(feeSplit2);
+
+    recipients = await packsInstance.getFeeRecipients(300008);
+    bps = await packsInstance.getFeeBps(300008);
+    expect(recipients[0]).to.equal(randomWallet1.address);
+    expect(recipients[1]).to.equal(randomWallet2.address);
+    expect(bps[0].toNumber()).to.equal(feeSplit2);
+    expect(bps[1].toNumber()).to.equal(feeSplit1);
+  });
 
   /* TODO: Write test to check non-editioned names */
 });

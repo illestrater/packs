@@ -52,7 +52,7 @@
       "coreData": [
         "Name two",
         "Second descript",
-        "50"
+        "30"
       ],
       "assets": ["3one", "3two", "3three"],
       "secondaryAssets": ["secondaryAsset3", "secondaryAsset3Version2"],

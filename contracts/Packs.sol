@@ -6,6 +6,8 @@
 pragma solidity >=0.6.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
+/* TODO: ADD SECONDARY SALE FEES */
+
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -47,6 +49,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
 
   mapping (uint256 => SingleCollectible) collectibles; // Unique assets
   mapping (uint256 => Metadata) metadata; // Trait & property attributes, indexes should be coupled with 'collectibles'
+  mapping (uint256 => Fee[]) secondaryFees; // Trait & property attributes, indexes should be coupled with 'collectibles'
   mapping (uint256 => string) public licenseURI; // URL to external license or file
 
   uint256 public collectibleCount = 0; // Total unique assets count
@@ -67,7 +70,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
     uint256[] memory _initParams,
     string memory _licenseURI
   ) ERC721PresetMinterPauserAutoId(name, symbol, baseURI) public {
-    require(_initParams[1] <= 100, "There cannot be bulk mints above 100");
+    require(_initParams[1] <= 30, "There cannot be bulk mints above 100");
 
     daoAddress = msg.sender;
     daoInitialized = false;
@@ -99,8 +102,20 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
   }
 
   // Add single collectible asset with main info and metadata properties
-  function addCollectible(string[] memory _coreData, string[] memory _assets, string[] memory _secondaryAssets, string[][] memory _metadataValues) public onlyDAO {
-    uint256 editions = safeParseInt(_coreData[2]);
+  function addCollectible(string[] memory _coreData, string[] memory _assets, string[] memory _secondaryAssets, string[][] memory _metadataValues, Fee[] memory _fees) public onlyDAO {
+    uint256 sum = 0;
+    for (uint256 i = 0; i < _fees.length; i++) {
+      require(_fees[i].recipient != address(0x0), "Recipient should be present");
+      require(_fees[i].value != 0, "Fee value should be positive");
+      secondaryFees[collectibleCount].push(Fee({
+        recipient: _fees[i].recipient,
+        value: _fees[i].value
+      }));
+      sum += _fees[i].value;
+    }
+
+    require(sum < 10000, "Fee should be less than 100%");
+
     collectibles[collectibleCount] = SingleCollectible({
       title: _coreData[0],
       description: _coreData[1],
@@ -115,7 +130,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
 
     string[] memory propertyNames = new string[](_metadataValues.length);
     string[] memory propertyValues = new string[](_metadataValues.length);
-    bool[] memory modifiables= new bool[](_metadataValues.length);
+    bool[] memory modifiables = new bool[](_metadataValues.length);
     for (uint256 i = 0; i < _metadataValues.length; i++) {
       propertyNames[i] = _metadataValues[i][0];
       propertyValues[i] = _metadataValues[i][1];
@@ -129,15 +144,16 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
       propertyCount: _metadataValues.length
     });
 
+    uint256 editions = safeParseInt(_coreData[2]);
     createTokenIDs(collectibleCount, editions);
 
     collectibleCount++;
     totalTokenCount += editions;
   }
 
-  function bulkAddCollectible(string[][] memory _coreData, string[][] memory _assets, string[][] memory _secondaryAssets, string[][][] memory _metadataValues) public onlyDAO {
+  function bulkAddCollectible(string[][] memory _coreData, string[][] memory _assets, string[][] memory _secondaryAssets, string[][][] memory _metadataValues, Fee[][] memory _fees) public onlyDAO {
     for (uint256 i = 0; i < _coreData.length; i++) {
-      addCollectible(_coreData[i], _assets[i], _secondaryAssets[i], _metadataValues[i]);
+      addCollectible(_coreData[i], _assets[i], _secondaryAssets[i], _metadataValues[i], _fees[i]);
     }
   }
 
@@ -171,6 +187,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
     uint256 tokenID = shuffleIDs[randomTokenID];
     shuffleIDs[randomTokenID] = shuffleIDs[shuffleIDs.length - 1];
     shuffleIDs.pop();
+
     _mint(_msgSender(), tokenID);
   }
 
@@ -194,6 +211,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
       uint256 tokenID = shuffleIDs[randomTokenID];
       shuffleIDs[randomTokenID] = shuffleIDs[shuffleIDs.length - 1];
       shuffleIDs.pop();
+
       _mint(_msgSender(), tokenID);
     }
   }
@@ -239,6 +257,29 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
   // Returns license version count
   function getLicenseVersion(uint256 versionNumber) public view returns (string memory) {
     return licenseURI[versionNumber - 1];
+  }
+
+  function getFeeRecipients(uint256 tokenId) external view returns (address payable[] memory) {
+    uint256 edition = safeParseInt(substring(toString(tokenId), bytes(toString(tokenId)).length - 5, bytes(toString(tokenId)).length)) - 1;
+    uint256 collectibleId = (tokenId - edition) / 100000 - 1;
+    Fee[] memory _fees = secondaryFees[collectibleId];
+    address payable[] memory result = new address payable[](_fees.length);
+    for (uint i = 0; i < _fees.length; i++) {
+      result[i] = _fees[i].recipient;
+    }
+    return result;
+  }
+
+  function getFeeBps(uint256 tokenId) external view returns (uint[] memory) {
+    uint256 edition = safeParseInt(substring(toString(tokenId), bytes(toString(tokenId)).length - 5, bytes(toString(tokenId)).length)) - 1;
+    uint256 collectibleId = (tokenId - edition) / 100000 - 1;
+    Fee[] memory _fees = secondaryFees[collectibleId];
+    uint[] memory result = new uint[](_fees.length);
+    for (uint i = 0; i < _fees.length; i++) {
+      result[i] = _fees[i].value;
+    }
+
+    return result;
   }
 
   // Dynamic base64 encoded metadata generation using on-chain metadata and edition numbers

@@ -4,23 +4,23 @@ pragma solidity >=0.6.0 <0.8.0;
 import "@openzeppelin/contracts/introspection/ERC165.sol";
 
 contract HasSecondarySaleFees is ERC165 {
-    // List of tokenIDs mapping to one or more creator splits
-	mapping(uint256 => address payable[]) creatorAddresses;
-	mapping(uint256 => uint256[]) creatorShares;
+    struct Fee {
+        address payable recipient;
+        uint256 value;
+    }
 
-	bytes4 private constant _INTERFACE_ID_FEES = 0xb7799584;
+    // id => fees
+    mapping (uint256 => Fee[]) public fees;
+    event SecondarySaleFees(uint256 tokenId, address[] recipients, uint[] bps);
 
-	constructor() public {
-		_registerInterface(_INTERFACE_ID_FEES);
-	}
-
-    // Recipient addresses 
-	function getFeeRecipients(uint256 tokenId) external view returns (address payable[] memory){
-		return creatorAddresses[tokenId];
-	}
-
-    // Percentage shares (1000 is equal to 10%)
-	function getFeeBps(uint256 tokenId) external view returns (uint[] memory){
-		return creatorShares[tokenId];
-	}
+    /*
+     * bytes4(keccak256('getFeeBps(uint256)')) == 0x0ebd4c7f
+     * bytes4(keccak256('getFeeRecipients(uint256)')) == 0xb9c4d9fb
+     *
+     * => 0x0ebd4c7f ^ 0xb9c4d9fb == 0xb7799584
+     */
+    bytes4 private constant _INTERFACE_ID_FEES = 0xb7799584;
+    constructor() public {
+        _registerInterface(_INTERFACE_ID_FEES);
+    }
 }
