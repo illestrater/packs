@@ -60,7 +60,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
   bool public editioned; // Display edition # in token name
   uint256 public licenseVersion; // Tracker of latest license
 
-  uint256[] public shuffleIDs;
+  uint32[] public shuffleIDs;
 
   constructor(
     string memory name,
@@ -163,11 +163,11 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
    */
   function createTokenIDs(uint256 collectibleCount, uint256 editions) private {
     for (uint256 i = 0; i < editions; i++) {
-      shuffleIDs.push((collectibleCount + 1) * 100000 + (i + 1));
+      shuffleIDs.push(uint32((collectibleCount + 1) * 100000 + (i + 1)));
     }
   }
 
-  function getTokens() public view returns (uint256[] memory) {
+  function getTokens() public view returns (uint32[] memory) {
     return shuffleIDs;
   }
 
