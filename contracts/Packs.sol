@@ -17,6 +17,9 @@ import "./IPacks.sol";
 import "./HasSecondarySaleFees.sol";
 import "hardhat/console.sol";
 
+// TODO: DISPERSE REVENUE
+// TODO: SECONDARY SPLITS
+
 contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSecondarySaleFees {
   using SafeMath for uint256;
   using Counters for Counters.Counter;
