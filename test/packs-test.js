@@ -25,12 +25,14 @@ describe("Greeter", function() {
 
   before(async () => {
     const Packs = await ethers.getContractFactory("Packs");
+    const fees = [[randomWallet1.address, feeSplit1], [randomWallet2.address, feeSplit2]];
     packsInstance = await Packs.deploy(
       'Relics',
       'MONSTERCAT',
       baseURI,
       true,
       [tokenPrice, bulkBuyLimit, saleStartTime],
+      fees,
       'https://arweave.net/license',
     );
     await packsInstance.deployed();

@@ -18,7 +18,6 @@ import "./HasSecondarySaleFees.sol";
 import "hardhat/console.sol";
 
 // TODO: DISPERSE REVENUE
-// TODO: SECONDARY SPLITS
 
 contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSecondarySaleFees {
   using SafeMath for uint256;
@@ -64,6 +63,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
   uint256 public licenseVersion; // Tracker of latest license
 
   uint32[] public shuffleIDs;
+  Fee[] public saleSplits;
 
   constructor(
     string memory name,
@@ -71,6 +71,7 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
     string memory baseURI,
     bool _editioned,
     uint256[] memory _initParams,
+    Fee[] memory _saleSplits,
     string memory _licenseURI
   ) ERC721PresetMinterPauserAutoId(name, symbol, baseURI) public {
     require(_initParams[1] <= 30, "There cannot be bulk mints above 100");
@@ -88,6 +89,21 @@ contract Packs is IPacks, ERC721PresetMinterPauserAutoId, ReentrancyGuard, HasSe
     saleStartTime = _initParams[2];
     licenseURI[0] = _licenseURI;
     licenseVersion = 1;
+
+    uint256 sum = 0;
+    for (uint256 i = 0; i < _saleSplits.length; i++) {
+      require(_saleSplits[i].recipient != address(0x0), "Recipient should be present");
+      require(_saleSplits[i].value != 0, "Fee value should be positive");
+
+      saleSplits.push(Fee({
+        recipient: _saleSplits[i].recipient,
+        value: _saleSplits[i].value
+      }));
+
+      sum += _saleSplits[i].value;
+    }
+
+    require(sum < 10000, "Fee should be less than 100%");
   }
 
   modifier onlyDAO() {
